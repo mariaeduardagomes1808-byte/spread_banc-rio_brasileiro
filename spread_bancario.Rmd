@@ -1,0 +1,1301 @@
+---
+title: "spread"
+output: html_document
+date: "2026-10-16"
+---
+---
+title: Qual seria a variável macroeconômica mais relevante, do ponto de vista estatístico,para a explicação do comportamento do spread bancário no Brasil?
+author: 'Laura Borelli, Maria Eduarda Gomes, Matheus Coelho'
+date: "2026-05-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(highcharter)
+library(GetBCBData)
+```
+
+## O que é a Taxa Selic?
+
+A Taxa Selic é a taxa básica de juros da economia brasileira, definida pelo Comitê de Política Monetária (COPOM) do Banco Central do Brasil. Ela representa o principal instrumento da política monetária e funciona como referência para todas as demais taxas de juros praticadas no mercado, influenciando empréstimos, financiamentos, investimentos e aplicações financeiras.
+
+Seu principal objetivo é o controle da inflação, garantindo a estabilidade do poder de compra da moeda. Quando a inflação está acima da meta estabelecida pelo Conselho Monetário Nacional (CMN), o Banco Central tende a elevar a Selic, tornando o crédito mais caro. Isso desestimula o consumo das famílias e os investimentos das empresas, desacelerando a demanda agregada e ajudando a conter a alta generalizada dos preços. Por outro lado, quando a atividade econômica está desacelerada ou a inflação está sob controle, o Banco Central tende a reduzir a Taxa Selic, barateando o crédito, de modo a incentivar o consumo, a produção e o investimento, o que contribui para o aquecimento da economia.
+
+Além disso, a Selic impacta diretamente o mercado financeiro, pois juros mais altos tornam aplicações em renda fixa, como títulos públicos, mais atrativos, podendo atrair capital estrangeiro e influenciar a valorização do real.
+
+**Gráfico 1:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# =========================
+# Pacotes
+# =========================
+library(tidyverse)
+library(highcharter)
+library(GetBCBData)
+library(lubridate)
+
+# =========================
+# Data inicial
+# =========================
+data_inicio <- "2005-01-01"
+
+# =========================
+# Selic (diária -> mensal média)
+# Série 432
+# =========================
+selic <- gbcbd_get_series(
+  id = 432,
+  first.date = data_inicio
+) %>%
+  rename(Selic = value) %>%
+  mutate(Data = floor_date(ref.date, "month")) %>%
+  group_by(Data) %>%
+  summarise(Selic = mean(Selic, na.rm = TRUE))
+
+# =========================
+# Juros ao consumidor
+# Série 20714
+# =========================
+juros_consumidor <- gbcbd_get_series(
+  id = 20714,
+  first.date = data_inicio
+) %>%
+  rename(Juros_Consumidor = value) %>%
+  rename(Data = ref.date)
+
+# =========================
+# Spread bancário
+# Série 20783
+# =========================
+spread <- gbcbd_get_series(
+  id = 20783,
+  first.date = data_inicio
+) %>%
+  rename(Spread = value) %>%
+  rename(Data = ref.date)
+
+# =========================
+# Base final
+# =========================
+dados <- selic %>%
+  inner_join(juros_consumidor, by = "Data") %>%
+  inner_join(spread, by = "Data") %>%
+  arrange(Data) %>%
+  mutate(
+    timestamp = datetime_to_timestamp(Data)
+  )
+
+# =========================
+# Gráfico
+# =========================
+highchart(type = "stock") %>%
+  
+  # =========================
+# Layout geral
+# =========================
+hc_chart(
+  
+  backgroundColor = "#FFFFFF",
+  
+  style = list(
+    fontFamily = "Segoe UI"
+  )
+) %>%
+  
+  # =========================
+# Título
+# =========================
+hc_title(
+  
+  text = "Taxa Selic, Juros ao Consumidor e Spread Bancário",
+  
+  style = list(
+    color = "#02023C",
+    fontSize = "18px",
+    fontWeight = "600"
+  )
+) %>%
+  
+  # =========================
+# Subtítulo
+# =========================
+hc_subtitle(
+  
+  text = "Séries mensais • Banco Central do Brasil",
+  
+  style = list(
+    color = "#666666",
+    fontSize = "12px",
+    fontWeight = "400"
+  )
+) %>%
+  
+  # =========================
+# Selic
+# =========================
+hc_add_series(
+  
+  data = list_parse2(
+    dados %>% select(timestamp, Selic)
+  ),
+  
+  name = "Selic (% a.a.)",
+  
+  color = "#02023C",
+  
+  lineWidth = 2,
+  
+  tooltip = list(
+    valueSuffix = " %"
+  )
+) %>%
+  
+  # =========================
+# Juros ao consumidor
+# =========================
+hc_add_series(
+  
+  data = list_parse2(
+    dados %>% select(timestamp, Juros_Consumidor)
+  ),
+  
+  name = "Juros ao Consumidor (% a.a.)",
+  
+  color = "#FEB015",
+  
+  lineWidth = 2,
+  
+  tooltip = list(
+    valueSuffix = " %"
+  )
+) %>%
+  
+  # =========================
+# Spread bancário
+# =========================
+hc_add_series(
+  
+  data = list_parse2(
+    dados %>% select(timestamp, Spread)
+  ),
+  
+  name = "Spread Bancário (% a.a.)",
+  
+  color = "#798",
+  
+  lineWidth = 2,
+  
+  dashStyle = "ShortDot",
+  
+  tooltip = list(
+    valueSuffix = " %"
+  )
+) %>%
+  
+  # =========================
+# Eixo Y
+# =========================
+hc_yAxis(
+  
+  title = list(
+    
+    text = "Taxa (% ao ano)",
+    
+    style = list(
+      color = "#02023C",
+      fontSize = "11px",
+      fontWeight = "500"
+    )
+  ),
+  
+  labels = list(
+    style = list(
+      color = "#666666",
+      fontSize = "10px"
+    )
+  ),
+  
+  gridLineColor = "#ebebeb",
+  gridLineWidth = 0.8
+) %>%
+  
+  # =========================
+# Eixo X
+# =========================
+hc_xAxis(
+  
+  type = "datetime",
+  
+  lineColor = "#d9d9d9",
+  lineWidth = 1,
+  
+  tickColor = "#d9d9d9",
+  tickWidth = 1,
+  
+  labels = list(
+    style = list(
+      color = "#4d4d4d",
+      fontSize = "10px",
+      fontWeight = "400"
+    )
+  )
+) %>%
+  
+  # =========================
+# Tooltip
+# =========================
+hc_tooltip(
+  
+  shared = TRUE,
+  
+  valueDecimals = 2,
+  
+  backgroundColor = "#FFFFFF",
+  
+  borderColor = "#d9d9d9",
+  
+  style = list(
+    fontSize = "11px"
+  )
+) %>%
+  
+  # =========================
+# Legenda
+# =========================
+hc_legend(
+  
+  enabled = TRUE,
+  
+  align = "center",
+  
+  verticalAlign = "bottom",
+  
+  itemStyle = list(
+    fontWeight = "400",
+    fontSize = "10px",
+    color = "#333333"
+  ),
+  
+  itemMarginTop = 2,
+  itemMarginBottom = 2
+) %>%
+  
+  # =========================
+# Navegador inferior
+# =========================
+hc_navigator(
+  
+  enabled = TRUE,
+  
+  outlineColor = "#02023C",
+  
+  maskFill = "rgba(2, 2, 60, 0.10)"
+) %>%
+  
+  # =========================
+# Scrollbar
+# =========================
+hc_scrollbar(
+  
+  enabled = TRUE,
+  
+  barBackgroundColor = "#02023C",
+  
+  barBorderRadius = 6,
+  
+  trackBackgroundColor = "#f1f1f1"
+) %>%
+  
+  # =========================
+# Range selector
+# =========================
+hc_rangeSelector(
+  
+  selected = 5,
+  
+  buttonTheme = list(
+    
+    fill = "#FFFFFF",
+    
+    stroke = "#d9d9d9",
+    
+    style = list(
+      color = "#02023C",
+      fontSize = "10px",
+      fontWeight = "400"
+    ),
+    
+    states = list(
+      
+      hover = list(
+        fill = "#FEB015"
+      ),
+      
+      select = list(
+        
+        fill = "#02023C",
+        
+        style = list(
+          color = "#FFFFFF"
+        )
+      )
+    )
+  )
+) %>%
+  
+  # =========================
+# Créditos
+# =========================
+hc_credits(
+  
+  enabled = TRUE,
+  
+  text = "Fonte: Banco Central do Brasil • Elaboração própria - IbMacro BH",
+  
+  href = NULL,
+  
+  position = list(
+    align = "center"
+  ),
+  
+  style = list(
+    fontSize = "9px",
+    color = "#666666"
+  )
+)
+```
+
+## O que é o Spread bancário e porquê ele existe
+
+O Spread bancário é a diferença da taxa de captação e a taxa de empréstimo cobrada pelos bancos, ou seja, ele representa o custo de intermediação financeira. Banco paga X% para captar recursos Banco cobre Y% para emprestar Spread = Y - X. Spread = custo de captação + risco + margem + impostos.
+
+O Spread bancário surge pois os bancos não são apenas intermediários, eles assumem custos e riscos no processo de transferência do crédito.
+
+Risco de inadimplência:
+
+-   Nem todos os clientes pagam o empréstimo, cerca de 82,8 milhões brasileiros estão no negativo de acordo com o último relatório publicado pelo Serasa em março de 2026.
+
+-   Para compensar as perdas os bancos recorrem ao Spread, quanto maior o risco maior o Spread.
+
+Custos operacionais:
+
+-   Existem custos associados à manutenção e ao funcionamento dos bancos, como o salário de funcionários, os investimentos em melhorias e a gestão das agências.
+
+-   Esses custos são repassados no valor do Spread bancário.
+
+Impostos e encargos:
+
+-   Os bancos brasileiros enfrentam uma tributação significativa pela captação de capital, que incluem impostos como o IOF, PIS e CONFINS. Esses impostos são aplicados sobre as operações financeiras, os lucros e o patrimônio.
+
+-   A tributação sobre o setor financeiro é uma das mais elevadas do país. Com a reforma tributária, estão previstas mudanças nas alíquotas e na forma de cálculo dos impostos, além de uma reestruturação nos sistemas de gestão fiscal. Essas alterações exigirão que os bancos se adaptem às novas regras, gerando custos adicionais para as instituições, que tendem a ser transmitidos para o Spread bancário.
+
+Insegurança jurídica:
+
+-   Atrelada a dificuldade de se recuperar o crédito em caso de inadimplência, de modo a aumentar os riscos da intermediação do crédito. Margem de lucro
+
+-   Os bancos precisam de lucro para financiamentos internos, para a atração de investidores e para a formação de reserva para momentos econômicos difíceis.
+
+**Gráfico 2:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# =========================
+# Pacotes
+# =========================
+library(tidyverse)
+library(highcharter)
+library(GetBCBData)
+library(lubridate)
+
+# =========================
+# Data inicial
+# =========================
+data_inicio <- "2011-01-01"
+
+# =========================
+# Extração de Dados do SGS
+# =========================
+# Usaremos apenas as 3 séries raízes para garantir histórico completo
+# 10736: Custo de captação
+# 21082: Inadimplência (Risco)
+# 20783: Spread bancário
+dados_brutos <- gbcbd_get_series(
+  id = c(10736, 21082, 20783),
+  first.date = data_inicio
+)
+
+# Organizando as séries em colunas separadas
+dados_sgs <- dados_brutos %>%
+  mutate(
+    variavel = case_when(
+      id.num == 10736 ~ "Captacao",
+      id.num == 21082 ~ "Inadimplencia",
+      id.num == 20783 ~ "Spread"
+    )
+  ) %>%
+  select(Data = ref.date, variavel, value) %>%
+  pivot_wider(names_from = variavel, values_from = value)
+
+# =========================
+# Base principal e Decomposição Perfeita
+# =========================
+dados <- dados_sgs %>%
+  arrange(Data) %>%
+  mutate(
+    Ano = year(Data),
+    
+    # 1. O ICC Calculado é exatamente a Captação + Spread (Garante a linha do topo)
+    ICC_Total = Captacao + Spread,
+    
+    # 2. O que sobra do Spread tirando a Inadimplência real do BCB
+    Resto_Spread = Spread - Inadimplencia,
+    
+    # 3. Distribuímos o Resto do Spread conforme os pesos da sua Tabela 3.2
+    # Soma dos pesos da tabela para esses 3 itens (17.25 + 14.25 + 13.44 = 44.94)
+    Despesas_Admin = Resto_Spread * (17.25 / 44.94),
+    Tributos_FGC   = Resto_Spread * (14.25 / 44.94),
+    Margem         = Resto_Spread * (13.44 / 44.94)
+  ) %>%
+  drop_na() # Remove qualquer mês incompleto
+
+# =========================
+# Médias anuais
+# =========================
+dados_anuais <- dados %>%
+  group_by(Ano) %>%
+  summarise(
+    Captacao       = mean(Captacao, na.rm = TRUE),
+    Inadimplencia  = mean(Inadimplencia, na.rm = TRUE),
+    Despesas_Admin = mean(Despesas_Admin, na.rm = TRUE),
+    Tributos_FGC   = mean(Tributos_FGC, na.rm = TRUE),
+    Margem         = mean(Margem, na.rm = TRUE),
+    Spread         = mean(Spread, na.rm = TRUE),
+    ICC_Total      = mean(ICC_Total, na.rm = TRUE)
+  )
+
+# =========================
+# Gráfico
+# =========================
+highchart() %>%
+  
+  # Layout geral (Removida a trava de marginBottom para a legenda não sobrepor)
+  hc_chart(
+    type = "column",
+    zoomType = "x",
+    backgroundColor = "#FFFFFF",
+    style = list(fontFamily = "Segoe UI")
+  ) %>%
+  
+  hc_title(
+    text = "Decomposição do Indicador de Custo de Crédito (ICC)",
+    style = list(color = "#02023C", fontSize = "18px", fontWeight = "600")
+  ) %>%
+  
+  hc_subtitle(
+    text = "Composição proporcional ao ICC • médias anuais",
+    style = list(color = "#666666", fontSize = "12px", fontWeight = "400")
+  ) %>%
+  
+  hc_xAxis(
+    categories = dados_anuais$Ano,
+    labels = list(style = list(color = "#4d4d4d", fontSize = "11px", fontWeight = "400")),
+    lineColor = "#d9d9d9", lineWidth = 1,
+    tickColor = "#d9d9d9", tickWidth = 1
+  ) %>%
+  
+  hc_yAxis(
+    min = 0,
+    reversedStacks = FALSE, # Garante que a primeira série (Captação) fique na base da barra
+    title = list(
+      text = "Taxa (% ao ano)",
+      style = list(color = "#02023C", fontSize = "11px", fontWeight = "500")
+    ),
+    labels = list(style = list(color = "#666666", fontSize = "10px")),
+    stackLabels = list(
+      enabled = TRUE,
+      formatter = JS("function() { return this.total.toFixed(1) + '%'; }"),
+      style = list(color = "#02023C", fontSize = "10px", fontWeight = "500")
+    ),
+    gridLineColor = "#ebebeb", gridLineWidth = 0.8
+  ) %>%
+  
+  hc_plotOptions(
+    column = list(
+      stacking = "normal",
+      borderWidth = 0,
+      pointPadding = 0.03,
+      groupPadding = 0.06
+    ),
+    series = list(animation = TRUE)
+  ) %>%
+  
+  # =========================
+# Séries das Barras
+# =========================
+hc_add_series(
+  name = "Custo de Captação",
+  data = round(dados_anuais$Captacao, 2),
+  color = "#FEB015"
+) %>%
+  
+  hc_add_series(
+    name = "Inadimplência",
+    data = round(dados_anuais$Inadimplencia, 2),
+    color = "#ffd792"
+  ) %>%
+  
+  hc_add_series(
+    name = "Despesas Administrativas",
+    data = round(dados_anuais$Despesas_Admin, 2),
+    color = "#89A7E0"
+  ) %>%
+  
+  hc_add_series(
+    name = "Tributos e FGC",
+    data = round(dados_anuais$Tributos_FGC, 2),
+    color = "#8FBCAF"
+  ) %>%
+  
+  hc_add_series(
+    name = "Margem Financeira",
+    data = round(dados_anuais$Margem, 2),
+    color = "#102A6B"
+  ) %>%
+  
+  # =========================
+# Linha do ICC total
+# =========================
+hc_add_series(
+  type = "spline",
+  name = "Indicador de Custo de Crédito (ICC)",
+  data = round(dados_anuais$ICC_Total, 2),
+  color = "#02023C",
+  lineWidth = 2,
+  marker = list(enabled = TRUE, radius = 2.5, lineWidth = 1)
+) %>%
+  
+  hc_tooltip(
+    shared = TRUE,
+    valueDecimals = 2,
+    valueSuffix = "%",
+    backgroundColor = "#FFFFFF",
+    borderColor = "#d9d9d9",
+    style = list(fontSize = "11px")
+  ) %>%
+  
+  # Legenda ajustada para não embolar
+  hc_legend(
+    enabled = TRUE,
+    align = "center",
+    verticalAlign = "bottom",
+    margin = 25, # Adiciona espaço entre a legenda e o eixo X
+    itemStyle = list(fontWeight = "400", fontSize = "11px", color = "#333333"),
+    itemMarginTop = 4,
+    itemMarginBottom = 4
+  ) %>%
+  
+  hc_credits(
+    enabled = TRUE,
+    text = "Fonte: Banco Central do Brasil • Elaboração própria",
+    href = NULL,
+    position = list(align = "center"),
+    style = list(fontSize = "10px", color = "#666666")
+  )
+```
+
+## Modelo econométrico para spread bancário no Brasil
+
+O artigo acadêmico "A política monetária brasileira por meio do canal de empréstimos bancários: uma análise do comportamento do spread entre 2002 e 2014” retrata um modelo de regressão múltipla desenvolvida por Oreiro et al.(2006) com o objetivo de explicar o comportamento e os determinantes macroeconômicos do spread bancário no Brasil.
+
+É importante destacar que o modelo está restrito ao período analisado; assim, ele deve ser utilizado como referência para compreender as relações entre as variáveis, especialmente em termos de direção e dinâmica, e não como parâmetro para valores absolutos, uma vez que estes podem se alterar ao longo do tempo, ainda que os padrões de movimento tendam a se manter.
+
+**Equação 1:**
+
+$$Spread = B_o + B_1ind + B_2Infl + B_3Selic + B_4Comp + e_i $$
+
+As variáveis representem as seguintes séries:
+
+-   Spread bancário: spread médio das operações de crédito com recursos livres para taxas de juros pré-fixadas, considerados o total geral (pessoas físicas e pessoas jurídicas).
+
+-   Índice de produção industrial (ind): adotado como proxy para o nível de produtividade econômica.
+
+-   Taxa de inflação (Infl): a variação mensal do Índice de preços ao Consumidor Amplo (IPCA).
+
+-   Taxa de Juros Selic (Selic): Principal instrumento de política monetária no regime de metas de inflação.
+
+-   Taxa de reservas compulsórias sobre o depósitos a vista (Comp): Representa os valores percentuais definidos pela autoridade monetária que não permanece disponível para liquidez no sistema bancário.
+
+No estudo é possível concluir que, as variáveis macroeconômicas são mais relevantes que as microecônomicas.
+
+Seguindo esse modelo, foi utilizado o método Mínimo Quadrado Ordinário (MQO). Sob a validade dos pressupostos de linearidade dos parâmetros, ausência de colinearidade entre variáveis independentes, valor esperado dos erros nulo, homocedasticidade, não correlação entre os erros e distribuição normal, os estimadores considerados BLUE (best linear unnbiased estimador) seriam os melhores estimadores não viesados possíveis.
+
+Foram coletados 156 observações e foram utilizadas séries do Banco Central e Instituto Brasileiro de Geografia e Estatística para fazer a análise.
+
+Com as estimações, foi feito uma regressão em nível, pois o objetivo principal é identificar a relação marginal entre as variáveis e não com o impacto dos parâmetros estimados, em que a qualidade do ajustamento do modelo foi melhor.
+
+As estimações indicaram os seguintes comportamentos:
+
+-   Uma redução de 1 ponto percentual no índice de produção industrial provoca um aumento de 0,13 pontos percentuais na variável spread, mantendo as demais constantes.
+
+-   Uma variação negativa de 1 ponto percentual nas taxas de depósito compulsório a vista aumenta 0,19 pontos percentuais o spread.
+
+-   A Selic apresenta relação direta, de modo que a variação de 1 ponto percentual promove a variação de 1,02 pontos percentuais.
+
+-   A inflação tem relação inversa, no qual uma variação em 1 ponto percentual nela impacta 1,56 em média o spread.
+
+**Equação 2**:
+
+$$ Spread = 0,42 - 0,13ind + 1,02Selic - 1,56Infl - 0,20Comp + e_i $$
+
+### É possível ver coerência entre esses valores e as teorias ecônomicas para cada termo?
+
+Afonso, Kohler e Freitas (2009) afirmam que economias em crescimento criam um ambiente em que a probabilidade de inadimplência é menor e a possibilidade de atração de capitais se amplia. Dessa forma, ocorre uma ampliação da oferta de crédito, o que reduz os custos do empréstimo através de ganhos de escala. Sendo assim, a relação iversa entre atividade econômica e spread está alinhada com a teoria.
+
+No caso da taxa Selic, a relação direta com o spread também é consistente com a teoria, já que elevações nas taxas de juros básicas podem ocasionar uma maior variabilidade no nível da produção real e na lucratividade das firmas, elevando o risco de crédito, o que pode resultar em taxas de empréstimos e spreads maiores. Soma-se a isso ao outro fator: quanto maior a taxa de juros, maiores serão as rentabilidades para viabilizar um projeto. A volatilidade da taxa de juros impacta de modo relevante o spread, segundo Da Silva, Oreiro e De Paula (2007), visto que ela é diretamente proporcional à instabilidade econômica. Dessa forma, maiores volatilidades da taxa de juros geram um impacto positivo e estatisticamente significante sobre o spread bancário, pois aumenta o risco percebido pelas instituições financeiras.
+
+Entretanto, a variável inflação apresentou comportamento divergente do esperado. Economicamente, Da Silva, Oreiro e de Paula (2007) ressaltam que uma elevação da taxa de inflação está associada com um aumento nos níveis de spread. No entanto, o modelo indicou relação inversa. Esse resultado pode estar associado a problemas de especificação, como a presença de multicolinearidade entre inflação e Selic, uma vez que ambas estão fortemente relacionadas no contexto do regime de metas de inflação. É como se parte do efeito da inflação fosse capturado pela variável Selic. Além disso, o compulsório também se mostrou diferente da análise teórica, o que pode ser explicado pela reduzida variabilidade dessa variável ao longo do período analisado, dificultando a identificação do seu impacto econométrico.
+
+Adicionalmente, seria crucial adicionar a volatilidade da taxa de juros ao modelo, mas devido a dificuldades de mensuração, não foi viável. Dessa forma, a variável inflação e compulsório podem ter sido impactada por esse viés de variável omitida, já que isso afeta a magnitude e o sinal dos coeficientes estimados.
+
+A volatilidade da taxa de juros é diretamente proporcional à instabilidade econômica, o que indica que maiores volatilidades na taxa de juros, aumentam o risco percebido, gerando um impacto positivo e significante sobre o spread bancário.
+
+### Conclusão
+
+Conforme a literatura, as variáveis macroeconômicas desempenham papel relevante para determinação do spread no Brasil, com destaque para taxa de juros (em nível e volatilidade) e nível de atividade econômica. Observa-se também que o spread bancário apresentou comportamento cíclico ao longo do período, com picos associados à instabilidade do cenário econômico, tais como os anos que marcaram o início do primeiro governo Lula e a crise financeira de 2007. Isso revela que a redução sustentável dos níveis de spread bancário no Brasil está associada à estabilidade econômica.
+
+## Taxa de Juros e Spread Bancário
+
+A dinâmica observada evidencia o caráter pró-cíclico do spread bancário no Brasil em frente a taxa de juros.
+
+A taxa Selic atua como principal determinante do custo de captação no sistema financeiro brasileiro, influenciando o comportamento do spread bancário. No entanto, segundo a teoria econômica, essa relação não é contemporânea, ocorrendo com defasagem, uma vez que as instituições financeiras ajustam suas taxas de crédito de forma gradual, incorporando também fatores como risco de inadimplência e expectativas macroeconômicas.
+
+Em períodos de forte estímulo monetário, como durante a pandemia de COVID-19, no final de 2020 a queda da taxa Selic contribuiu para a compressão do spread. Por outro lado, o Brasil atualmente passa por um cenário intenso, com juros elevados (ciclo contracionista recente), pressões inflacionárias persistentes, deterioração das expectativas fiscais, crédito mais restritos, cenários de aperto monetário e aumento da incerteza macroeconômica,o que resulta na ampliação do spread, refletindo tanto o maior custo de captação quanto o aumento do prêmio de risco exigido pelas instituições financeiras.
+
+**Gráfico 3 e 4:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(highcharter)
+library(GetBCBData)
+library(lubridate)
+
+# Spread
+spread <- gbcbd_get_series(
+  id = 20786,
+  first.date = "2012-01-01"
+) |>
+  rename(data = ref.date, spread = value)
+
+# Juros (diário)
+juros <- gbcbd_get_series(
+  id = 11,
+  first.date = "2012-01-01"
+) |>
+  rename(data = ref.date, juros = value)
+
+# transformar juros em mensal
+juros_mensal <- juros |>
+  mutate(data = floor_date(data, "month")) |>
+  group_by(data) |>
+  summarise(juros = mean(juros, na.rm = TRUE))
+
+# juntar bases
+dados <- spread |>
+  mutate(data = floor_date(data, "month")) |>
+  inner_join(juros_mensal, by = "data") |>
+  arrange(data)
+
+# timestamp
+dados <- dados |>
+  mutate(
+    data = as.POSIXct(data),
+    timestamp = datetime_to_timestamp(data)
+  )
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados <- dados %>%
+  arrange(data) %>%
+  mutate(
+    spread_lag1 = dplyr::lag(spread, 1)
+  )
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados <- dados %>%
+  arrange(data) %>%
+  mutate(
+    spread_lag1 = dplyr::lag(spread, 1)
+  )
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+highchart() |>
+  hc_chart(backgroundColor = "#FFFFFF", zoomType = "x") |>
+  
+  hc_add_series(
+    data = list_parse2(dados |> select(timestamp, spread)),
+    type = "line",
+    name = "Spread Bancário",
+    color = "#FEB712",
+    yAxis = 0,
+    lineWidth = 2
+  ) |>
+  
+  hc_add_series(
+    data = list_parse2(dados |> select(timestamp, juros)),
+    type = "line",
+    name = "Taxa de Juros",
+    color = "#02023C",
+    yAxis = 1,
+    lineWidth = 2
+  ) |>
+  
+  hc_yAxis_multiples(
+    list(title = list(text = "Spread (%)")),
+    list(title = list(text = "Juros (%)"), opposite = TRUE)
+  ) |>
+  
+  hc_title(text = "Spread vs Juros (Sem Defasagem)") |>
+  hc_tooltip(shared = TRUE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+highchart() |>
+  hc_chart(backgroundColor = "#FFFFFF", zoomType = "x") |>
+  
+  # Spread original
+  hc_add_series(
+    data = list_parse2(dados |> select(timestamp, spread)),
+    type = "line",
+    name = "Spread (original)",
+    color = "#B0BEC5",
+    yAxis = 0,
+    lineWidth = 2
+  ) |>
+  
+  # Spread com lag
+  hc_add_series(
+    data = list_parse2(dados |> select(timestamp, spread_lag1)),
+    type = "line",
+    name = "Spread (lag 1 mês)",
+    color = "#FEB712",
+    yAxis = 0,
+    lineWidth = 3
+  ) |>
+  
+  # Juros
+  hc_add_series(
+    data = list_parse2(dados |> select(timestamp, juros)),
+    type = "line",
+    name = "Taxa de Juros",
+    color = "#02023C",
+    yAxis = 1,
+    lineWidth = 2
+  ) |>
+  
+  hc_yAxis_multiples(
+    list(title = list(text = "Spread (%)")),
+    list(title = list(text = "Juros (%)"), opposite = TRUE)
+  ) |>
+  
+  hc_title(text = "Spread com Defasagem vs Juros") |>
+  hc_tooltip(shared = TRUE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados_ts <- dados %>%
+  select(juros, spread, spread_lag1) %>%
+  na.omit()
+
+# sem lag
+print(cor(dados_ts$juros, dados_ts$spread))
+
+# com lag
+print(cor(dados_ts$juros, dados_ts$spread_lag1))
+```
+
+A análise da relação entre a taxa básica de juros e o spread bancário no Brasil indica a existência de uma correlação positiva moderada entre as variáveis. Os resultados empíricos mostram que variações na taxa de juros estão associadas a mudanças no spread, o que é consistente com a teoria econômica, uma vez que o custo de captação dos bancos influencia a precificação do crédito.
+
+Juntamente, ao incorporar defasagens na análise, não se observou aumento significativo na correlação. Isso sugere que o ajuste do spread em relação à taxa de juros ocorre de forma predominantemente contemporânea, ou que eventuais efeitos defasados são limitados no período analisado.
+
+Além disso, a magnitude da correlação indica que a taxa de juros, embora muito relevante, não é suficiente para explicar integralmente o comportamento do spread bancário. Esse resultado aponta para a presença de outros fatores estruturais e macroeconômicos, como risco de crédito, inadimplência e condições de mercado, que também desempenham papel importante na sua determinação.
+
+## Spread Bancário e Volatilidade da Taxa de Juros no Brasil
+
+**Gráfico 5:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# volatilidade mensal dos juros (desvio padrão dentro do mês)
+volatilidade <- juros %>%
+  mutate(data = floor_date(data, "month")) %>%
+  group_by(data) %>%
+  summarise(vol = sd(juros, na.rm = TRUE))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados_vol <- dados %>%
+  left_join(volatilidade, by = "data") %>%
+  na.omit()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# correlação spread vs volatilidade
+print(cor(dados_vol$spread, dados_vol$vol))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados_vol <- dados_vol %>%
+  mutate(timestamp = datetime_to_timestamp(as.POSIXct(data)))
+
+highchart() |>
+  hc_chart(backgroundColor = "#FFFFFF", zoomType = "x") |>
+  
+  # Spread
+  hc_add_series(
+    data = list_parse2(dados_vol |> select(timestamp, spread)),
+    type = "line",
+    name = "Spread Bancário",
+    color = "#FEB712",
+    yAxis = 0,
+    lineWidth = 2
+  ) |>
+  
+  # Volatilidade
+  hc_add_series(
+    data = list_parse2(dados_vol |> select(timestamp, vol)),
+    type = "line",
+    name = "Volatilidade (juros)",
+    color = "#02023C",
+    yAxis = 1,
+    lineWidth = 2
+  ) |>
+  
+  hc_yAxis_multiples(
+    list(title = list(text = "Spread (%)")),
+    list(title = list(text = "Volatilidade"), opposite = TRUE)
+  ) |>
+  
+  hc_title(text = "Spread vs Volatilidade dos Juros") |>
+  hc_tooltip(shared = TRUE)
+```
+
+Embora a literatura aponte a volatilidade da taxa de juros como variável relevante para explicar o spread bancário, os resultados empíricos encontrados não confirmam essa relação de forma significativa. A medida de volatilidade utilizada, baseada na variação intramensal da taxa de juros, apresentou baixa correlação com o spread, sugerindo que esse indicador não captura adequadamente o tipo de risco relevante para a precificação do crédito. Esse resultado sugere que essa proxy específica não é capaz de capturar adequadamente o tipo de incerteza macroeconômica relevante para a formação do spread. Em particular, a volatilidade de curto prazo da taxa de juros pode não refletir riscos mais amplos, como instabilidade econômica, choques externos ou mudanças nas expectativas dos agentes.
+
+Dessa forma, embora a volatilidade permaneça conceitualmente importante, os resultados indicam que sua mensuração requer o uso de indicadores mais abrangentes de risco macroeconômico, como volatilidade cambial ou medidas de risco país, para que sua relação com o spread bancário seja devidamente capturada.
+
+## Spread Bancário e Volatilidade cambial
+
+Nesse contexto, torna-se pertinente investigar a relação entre o spread bancário e a volatilidade cambial, com o objetivo de avaliar se essa variável apresenta maior poder explicativo sobre o comportamento do spread, podendo se configurar como um determinante mais relevante.
+
+**Gráfico 6**:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+usd <- gbcbd_get_series(
+  id = 1,
+  first.date = "2012-01-01"
+) |>
+  rename(data = ref.date, usd = value)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+vol_cambio <- usd |>
+  mutate(data = floor_date(data, "month")) |>
+  group_by(data) |>
+  summarise(vol_usd = sd(usd, na.rm = TRUE))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados_vol2 <- dados |>
+  left_join(vol_cambio, by = "data") |>
+  na.omit()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cor(dados_vol2$spread, dados_vol2$vol_usd)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dados_vol2 <- dados_vol2 |>
+  mutate(timestamp = datetime_to_timestamp(as.POSIXct(data)))
+
+highchart() |>
+  hc_chart(backgroundColor = "#FFFFFF", zoomType = "x") |>
+  
+  # Spread
+  hc_add_series(
+    data = list_parse2(dados_vol2 |> select(timestamp, spread)),
+    type = "line",
+    name = "Spread Bancário",
+    color = "#FEB712",
+    yAxis = 0,
+    lineWidth = 2
+  ) |>
+  
+  # Volatilidade do câmbio
+  hc_add_series(
+    data = list_parse2(dados_vol2 |> select(timestamp, vol_usd)),
+    type = "line",
+    name = "Volatilidade do Câmbio",
+    color = "#02023C",
+    yAxis = 1,
+    lineWidth = 2
+  ) |>
+  
+  hc_yAxis_multiples(
+    list(title = list(text = "Spread (%)")),
+    list(title = list(text = "Volatilidade do Câmbio"), opposite = TRUE)
+  ) |>
+  
+  hc_title(text = "Spread Bancário vs Volatilidade Cambial") |>
+  hc_tooltip(shared = TRUE)
+```
+
+Contudo, não foi observada uma relação significativa entre a volatilidade do câmbio e o spread bancário. A correlação estimada foi baixa, e a análise gráfica evidencia que a volatilidade cambial possui comportamento predominantemente errático, caracterizado por choques pontuais que não se traduzem em movimentos persistentes no spread. Esse resultado sugere que, embora o câmbio seja um importante indicador de risco macroeconômico, sua volatilidade isolada não é suficiente para explicar a dinâmica do spread bancário no período analisado
+
+## Conclusão
+
+Em síntese, a análise empírica indica que a taxa de juros exerce papel relevante na determinação do spread bancário no Brasil, apresentando a maior aderência entre as variáveis analisadas. Esse resultado é consistente com o modelo econométrico discutido, no qual a taxa Selic se mostrou estatisticamente significativa e com impacto positivo sobre o spread, reforçando sua importância como principal canal de transmissão da política monetária para o crédito.
+
+Por outro lado, as medidas de volatilidade testadas, tanto da taxa de juros quanto do câmbio, não demonstraram relação significativa com o spread bancário. As baixas correlações observadas e o comportamento errático dessas séries sugerem limitações na capacidade dessas proxies em capturar o risco macroeconômico relevante para a precificação do crédito. Dessa forma, embora a literatura destaque a volatilidade como determinante importante do spread, os resultados obtidos indicam que sua mensuração empírica exige indicadores mais abrangentes de risco e incerteza. No recorte analisado, variáveis de nível, em especial a taxa de juros, apresentaram maior poder explicativo da dinâmica do spread do que as medidas de volatilidade consideradas.
+
+Por fim, os resultados reforçam que o comportamento do spread bancário é multifacetado, sendo influenciado não apenas pelo custo de captação, mas também por fatores relacionados ao risco, à inadimplência e às condições macroeconômicas gerais, o que limita a capacidade explicativa de modelos baseados em proxies isoladas. Conclui-se então que, sim, a taxa de juros se destaca como principal variável explicativa do spread bancário no Brasil.
+
+## Ciclos econômicos
+
+A análise dos ciclos econômicos no Brasil, em conjunto com a condução da política monetária, revela uma dinâmica particular marcada por imperfeições no canal de crédito e por efeitos amplificados ao longo do tempo. Em teoria, a política monetária atua de forma relativamente direta: ao elevar a taxa básica de juros (Selic), o custo do crédito aumenta, o consumo e o investimento desaceleram e, consequentemente, a inflação tende a recuar. No entanto, na prática brasileira, esse mecanismo funciona de maneira mais lenta, incompleta e, muitas vezes, distorcida.
+
+O principal ponto de fricção está no canal de crédito. A transmissão da política monetária para a economia real ocorre com defasagem significativa, uma vez que contratos financeiros, decisões de consumo e investimento e ajustes de preços não respondem imediatamente às mudanças na taxa de juros. Além disso, o elevado nível de spreads bancários reduz a potência da política monetária. Como o crédito já é estruturalmente caro, variações na Selic não se traduzem integralmente em mudanças no custo efetivo enfrentado por famílias e empresas. Soma-se a isso a presença de ineficiências no sistema financeiro, como baixa concorrência, riscos elevados e limitações institucionais, que tornam a transmissão ainda mais imperfeita.
+
+Essa dinâmica se torna ainda mais relevante quando analisada ao longo do ciclo econômico. O spread bancário não é apenas elevado, mas também pró-cíclico, ou seja, varia de acordo com o momento da economia. Em períodos de recessão, o aumento do desemprego eleva a inadimplência e o risco percebido pelas instituições financeiras. Como resposta, os bancos ampliam os spreads, restringem a concessão de crédito e aprofundam a contração da atividade econômica. Nesse contexto, o crédito não atua como amortecedor, mas como amplificador da crise. Por outro lado, em momentos de expansão econômica, a melhora das condições do mercado de trabalho e a redução do risco estimulam a queda dos spreads e a expansão do crédito, o que reforça o crescimento. Assim, o sistema financeiro contribui para intensificar tanto as fases de expansão quanto as de contração do ciclo.
+
+**Gráfico 7:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# =========================
+# PACOTES
+# =========================
+library(GetBCBData)
+library(dplyr)
+library(lubridate)
+library(highcharter)
+
+# =========================
+# DADOS
+# =========================
+
+# Spread bancário
+spread <- gbcbd_get_series(
+  id = 20783,
+  first.date = "2012-01-01"
+)
+
+# Desemprego
+desemprego <- gbcbd_get_series(
+  id = 24369,
+  first.date = "2012-01-01"
+)
+
+# Selic diária (% a.d.)
+selic <- gbcbd_get_series(
+  id = 11,
+  first.date = "2012-01-01"
+)
+
+# =========================
+# AJUSTAR NOMES
+# =========================
+spread <- spread %>%
+  rename(
+    data = ref.date,
+    spread = value
+  )
+
+desemprego <- desemprego %>%
+  rename(
+    data = ref.date,
+    desemprego = value
+  )
+
+selic <- selic %>%
+  rename(
+    data = ref.date,
+    selic = value
+  )
+
+# =========================
+# CONVERTER SELIC (% a.d. → % a.a.)
+# =========================
+selic <- selic %>%
+  
+  mutate(
+    selic = ((1 + selic/100)^252 - 1) * 100
+  ) %>%
+  
+  mutate(
+    data = floor_date(data, "month")
+  ) %>%
+  
+  group_by(data) %>%
+  
+  summarise(
+    selic = mean(selic, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# =========================
+# JUNTAR BASES
+# =========================
+dados <- spread %>%
+  inner_join(desemprego, by = "data") %>%
+  inner_join(selic, by = "data") %>%
+  arrange(data) %>%
+  mutate(
+    x = datetime_to_timestamp(as.POSIXct(data))
+  )
+
+# =========================
+# GRÁFICO
+# =========================
+highchart() %>%
+  
+  hc_chart(
+    zoomType = "x",
+    marginBottom = 80
+  ) %>%
+  
+  # Áreas de crise
+  hc_xAxis(
+    type = "datetime",
+    
+    plotBands = list(
+      
+      list(
+        from = datetime_to_timestamp(as.POSIXct("2014-01-01")),
+        to   = datetime_to_timestamp(as.POSIXct("2016-12-01")),
+        color = "rgba(255,0,0,0.08)",
+        label = list(text = "Recessão 2015-16")
+      ),
+      
+      list(
+        from = datetime_to_timestamp(as.POSIXct("2020-03-01")),
+        to   = datetime_to_timestamp(as.POSIXct("2021-06-01")),
+        color = "rgba(0,0,255,0.08)",
+        label = list(text = "Pandemia")
+      )
+    )
+  ) %>%
+  
+  # Spread bancário
+  hc_add_series(
+    data = list_parse2(
+      dados %>% select(x, spread)
+    ),
+    type = "line",
+    name = "Spread Bancário (%)",
+    color = "#02023C",
+    lineWidth = 2
+  ) %>%
+  
+  # Desemprego
+  hc_add_series(
+    data = list_parse2(
+      dados %>% select(x, desemprego)
+    ),
+    type = "line",
+    name = "Desemprego (%)",
+    color = "#FEB015",
+    lineWidth = 2
+  ) %>%
+  
+  # Selic
+  hc_add_series(
+    data = list_parse2(
+      dados %>% select(x, selic)
+    ),
+    type = "line",
+    name = "Selic (%)",
+    color = "#3a3a3a",
+    lineWidth = 2
+  ) %>%
+  
+  hc_title(
+    text = "Spread Bancário em Períodos de Crise"
+  ) %>%
+  
+  # APENAS UM EIXO
+  hc_yAxis(
+    title = list(text = NULL)
+  ) %>%
+  
+  hc_tooltip(shared = TRUE) %>%
+  
+  hc_legend(enabled = TRUE) %>%
+  
+  hc_credits(
+    enabled = TRUE,
+    text = "Fonte: Banco Central do Brasil (Séries 20783, 11 e 24369). Elaboração própria - IbMacro BH",
+    href = NULL,
+    position = list(
+      align = "center"
+    ),
+    style = list(
+      fontSize = "10px",
+      color = "#666666"
+    )
+  )
+```
+
+Essa característica também explica por que choques econômicos, mesmo quando relativamente pequenos, podem gerar impactos desproporcionais na economia brasileira. Alterações no cenário externo, como mudanças nos juros internacionais ou na taxa de câmbio, podem afetar a percepção de risco, levar a uma contração do crédito e desencadear efeitos amplificados sobre o nível de atividade. Esse fenômeno está associado ao chamado acelerador financeiro, no qual o sistema de crédito amplifica choques iniciais, transformando-os em movimentos mais intensos no ciclo econômico. Além disso, é possível ver que a queda da taxa selic no período da Pandemia, por exemplo, fez com que o Spread Bancário fosse controlado, mesmo com o desemprego subindo.
+
+Diante dessas limitações, os bancos públicos desempenham um papel relevante na economia brasileira, especialmente em momentos de crise. Ao atuarem de forma anticíclica, essas instituições podem expandir a oferta de crédito quando os bancos privados estão retraindo suas operações, contribuindo para suavizar a queda da atividade econômica. Além disso, ao praticarem taxas mais baixas, os bancos públicos exercem pressão competitiva sobre o sistema financeiro, ajudando a conter os spreads e a melhorar a transmissão da política monetária. Dessa forma, funcionam como um mecanismo de compensação das falhas estruturais do mercado de crédito
+
+**Gráfico 8:**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# =========================
+# PACOTES
+# =========================
+library(GetBCBData)
+library(dplyr)
+library(lubridate)
+library(highcharter)
+
+# =========================
+# DADOS
+# =========================
+
+# Crédito - Bancos Públicos (% PIB)
+publicos <- gbcbd_get_series(
+  id = 20542,
+  first.date = "2007-01-01"
+)
+
+# Crédito - Bancos Privados (% PIB)
+privados <- gbcbd_get_series(
+  id = 20543,
+  first.date = "2007-01-01"
+)
+
+# =========================
+# AJUSTAR NOMES
+# =========================
+publicos <- publicos %>%
+  rename(
+    data = ref.date,
+    publicos = value
+  )
+
+privados <- privados %>%
+  rename(
+    data = ref.date,
+    privados = value
+  )
+
+# =========================
+# JUNTAR BASES
+# =========================
+dados <- inner_join(publicos, privados, by = "data") %>%
+  arrange(data) %>%
+  mutate(
+    x = datetime_to_timestamp(as.POSIXct(data))
+  )
+
+# =========================
+# GRÁFICO
+# =========================
+highchart() %>%
+  
+  hc_chart(
+    zoomType = "x",
+    marginBottom = 80
+  ) %>%
+  
+  # Crise 2008
+  hc_xAxis(
+    type = "datetime",
+    
+    plotBands = list(
+      
+      list(
+        from = datetime_to_timestamp(as.POSIXct("2008-09-01")),
+        to   = datetime_to_timestamp(as.POSIXct("2009-12-01")),
+        color = "rgba(255,0,0,0.08)",
+        label = list(text = "Crise 2008")
+      ),
+      
+      list(
+        from = datetime_to_timestamp(as.POSIXct("2014-01-01")),
+        to   = datetime_to_timestamp(as.POSIXct("2016-12-01")),
+        color = "rgba(0,0,255,0.08)",
+        label = list(text = "Recessão 2015-16")
+      ),
+      
+      list(
+        from = datetime_to_timestamp(as.POSIXct("2020-03-01")),
+        to   = datetime_to_timestamp(as.POSIXct("2021-06-01")),
+        color = "rgba(0,128,0,0.08)",
+        label = list(text = "Pandemia")
+      )
+    )
+  ) %>%
+  
+  # Bancos públicos
+  hc_add_series(
+    data = list_parse2(
+      dados %>% select(x, publicos)
+    ),
+    type = "line",
+    name = "Bancos Públicos (% PIB)",
+    color = "#02023C",
+    lineWidth = 2
+  ) %>%
+  
+  # Bancos privados
+  hc_add_series(
+    data = list_parse2(
+      dados %>% select(x, privados)
+    ),
+    type = "line",
+    name = "Bancos Privados (% PIB)",
+    color = "#FEB015",
+    lineWidth = 2
+  ) %>%
+  
+  hc_title(
+    text = "Crédito: Bancos Públicos vs Bancos Privados"
+  ) %>%
+  
+  hc_yAxis(
+    title = list(
+      text = "Crédito (% PIB)"
+    )
+  ) %>%
+  
+  hc_tooltip(
+    shared = TRUE
+  ) %>%
+  
+  hc_legend(
+    enabled = TRUE
+  ) %>%
+  
+  hc_credits(
+    enabled = TRUE,
+    text = "Fonte: Banco Central do Brasil (Séries 20542 e 20543). Elaboração própria - IbMacro BH",
+    href = NULL,
+    position = list(
+      align = "center"
+    ),
+    style = list(
+      fontSize = "10px",
+      color = "#666666"
+    )
+  )
+```
